@@ -1,13 +1,33 @@
-const Task = require('../models/taskModel');
+const fs = require('fs');
+const path = require('path');
 
-let tasks = [];
+const tasksFilePath = path.join(__dirname, '..', 'data', 'tasks.js');
+
+function readTasksFromFile() {
+    try {
+        const tasksData = fs.readFileSync(tasksFilePath, 'utf8');
+        return JSON.parse(tasksData);
+    } catch (error) {
+        console.error('Error al leer el archivo de tareas:', error);
+        return [];
+    }
+}
+
+function writeTasksToFile(tasks) {
+    try {
+        fs.writeFileSync(tasksFilePath, JSON.stringify(tasks, null, 2));
+    } catch (error) {
+        console.error('Error al escribir en el archivo de tareas:', error);
+    }
+}
+
+let tasks = readTasksFromFile();
 
 module.exports = {
     getAllTasks: (req, res) => {
         if (tasks.length === 0) {
             return res.status(404).json({ message: 'Aún no tienes tareas creadas' });
         }
-        console.log('Tareas actuales:', tasks);
         res.json(tasks);
     },
 
@@ -22,50 +42,52 @@ module.exports = {
     },
 
     createTask: (req, res) => {
-        const { name, description, dueDate } = req.body;
-        const id = tasks.length + 1;
-        const createdDate = new Date();
-        const status = 'pendiente';
+        const { name, description, dueDate, createdDate, status } = req.body;
 
-        const newTask = new Task(id, name, description, createdDate, dueDate, status);
-        tasks.push(newTask);
+        if (!name || !description || !dueDate || !createdDate || !status) {
+            return res.status(400).json({ error: 'Faltan campos requeridos para crear la tarea' });
+        }
 
-        res.status(201).json(newTask);
+        const id = tasks.length + 1; // Generar automáticamente el ID
+        const task = { id, name, description, dueDate, createdDate, status };
+        tasks.push(task);
+
+        writeTasksToFile(tasks);
+
+        res.status(201).json(task);
     },
 
     updateTask: (req, res) => {
         const taskId = req.params.id;
-        const taskIndex = tasks.findIndex(task => task.id === taskId);
+        const taskToUpdate = tasks.find(task => task.id === taskId);
 
-        if (taskIndex === -1) {
+        if (!taskToUpdate) {
             return res.status(404).json({ error: 'Tarea no encontrada' });
         }
 
-        const { name, description, dueDate, status } = req.body;
+        const { status } = req.body;
 
-        tasks[taskIndex] = {
-            ...tasks[taskIndex],
-            name: name || tasks[taskIndex].name,
-            description: description || tasks[taskIndex].description,
-            dueDate: dueDate || tasks[taskIndex].dueDate,
-            status: status || tasks[taskIndex].status
-        };
+        if (!status) {
+            return res.status(400).json({ error: 'El campo "status" es requerido' });
+        }
 
-        res.json(tasks[taskIndex]);
+        taskToUpdate.status = status;
+        writeTasksToFile(tasks);
+
+        res.json(taskToUpdate);
     },
 
     deleteTask: (req, res) => {
         const taskId = req.params.id;
-        console.log('Eliminando tarea con ID:', taskId);
         const initialLength = tasks.length;
-        tasks = tasks.filter(task => task.id !== String(taskId)); // Convertir taskId a cadena
+        tasks = tasks.filter(task => task.id !== taskId);
 
-        // Verificar si la tarea fue eliminada
         if (tasks.length === initialLength) {
-            // Si la longitud del arreglo no cambió, significa que la tarea no se encontró
             return res.status(404).json({ error: 'La tarea no fue encontrada' });
         }
 
-        res.sendStatus(204); // Tarea eliminada exitosamente
+        writeTasksToFile(tasks);
+
+        res.sendStatus(204);
     }
 };
