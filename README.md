@@ -4,21 +4,18 @@
 Este proyecto es una API RESTful desarrollada en Node.js y Express para administrar tareas. Proporciona endpoints para realizar operaciones CRUD (Crear, Leer, Actualizar y Eliminar) sobre las tareas almacenadas en un servidor.
 
 ## Integrantes del Equipo
-- [Yuldor Alexis Salazar Duque](https://github.com/asalazdu)
+- Yuldor Alexis Salazar Duque
 
 ## Tecnologías Utilizadas
 - Node.js
 - Express
 
 ## Instalación y Ejecución del Proyecto
-1. **Clona el Repositorio:**
-```bash
+Clona el Repositorio:
 git clone https://github.com/asalazdu/ApiNode.git
----
 
 ## Uso
 - Esta API proporciona endpoints para realizar operaciones CRUD en tareas.
-
 
 ## Contribuir
 1. Haz un fork del proyecto.
@@ -26,8 +23,3 @@ git clone https://github.com/asalazdu/ApiNode.git
 3. Haz commit a tus cambios (`git commit -am 'Agrega nueva funcionalidad'`).
 4. Sube tu rama (`git push origin feature/nueva-funcionalidad`).
 5. Abre un pull request.
-
-
-
-
-
