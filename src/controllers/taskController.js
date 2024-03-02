@@ -63,6 +63,7 @@ module.exports = {
     createTask: (req, res) => {
         const { name, description, dueDate, createdDate, status } = req.body;
 
+        // Validar datos de entrada
         if (!name || !description || !dueDate || !createdDate || !status) {
             return res.status(400).json({ error: 'Faltan campos requeridos para crear la tarea' });
         }
@@ -78,22 +79,26 @@ module.exports = {
     },
 
     /**
-     * Actualiza el estado de una tarea por su ID.
-     * @function updateTask
-     * @memberof TaskController
-     * @param {Object} req - Objeto de solicitud HTTP.
-     * @param {Object} res - Objeto de respuesta HTTP.
-     * @returns {void}
-     */
+ * Actualiza el estado de una tarea por su ID.
+ * @function updateTask
+ * @memberof TaskController
+ * @param {Object} req - Objeto de solicitud HTTP.
+ * @param {Object} res - Objeto de respuesta HTTP.
+ * @returns {void}
+ */
     updateTask: (req, res) => {
         const taskId = req.params.id;
         const { status } = req.body;
-        const task = tasks.find(task => task.id === taskId);
-        if (!task) {
+        const taskIndex = tasks.findIndex(task => task.id === taskId);
+        if (taskIndex === -1) {
             return res.status(404).json({ error: 'Tarea no encontrada' });
         }
-        task.status = status;
-        res.json(task);
+        // Guardar el estado anterior para comparar después
+        const oldStatus = tasks[taskIndex].status;
+        tasks[taskIndex].status = status;
+        // Crear un objeto con el campo actualizado y su nuevo valor
+        const updatedField = { field: 'status', oldValue: oldStatus, newValue: status };
+        res.json({ task: tasks[taskIndex], updatedField });
     },
 
     /**
@@ -112,5 +117,62 @@ module.exports = {
             return res.status(404).json({ error: 'Tarea no encontrada' });
         }
         res.json({ message: 'Tarea eliminada exitosamente' });
+    },
+
+    /**
+     * Obtiene un conjunto de tareas paginadas.
+     * @function getTasksByPage
+     * @memberof TaskController
+     * @param {Object} req - Objeto de solicitud HTTP.
+     * @param {Object} res - Objeto de respuesta HTTP.
+     * @returns {void}
+     */
+    getTasksByPage: (req, res) => {
+        const page = parseInt(req.query.page) || 1;
+        const pageSize = parseInt(req.query.pageSize) || 10;
+        const startIndex = (page - 1) * pageSize;
+        const endIndex = page * pageSize;
+        const tasksInPage = tasks.slice(startIndex, endIndex);
+        res.json(tasksInPage);
+    },
+
+    /**
+     * Valida los datos de entrada para crear una nueva tarea.
+     * @function validateTaskData
+     * @memberof TaskController
+     * @param {Object} req - Objeto de solicitud HTTP.
+     * @param {Object} res - Objeto de respuesta HTTP.
+     * @param {Function} next - Función para pasar el control al siguiente middleware.
+     * @returns {void}
+     */
+    validateTaskData: (req, res, next) => {
+        const { name, description, dueDate, createdDate, status } = req.body;
+
+        if (!name || !description || !dueDate || !createdDate || !status) {
+            return res.status(400).json({ error: 'Faltan campos requeridos para crear la tarea' });
+        }
+
+        next();
+    },
+
+    /**
+     * Filtra las tareas según los criterios especificados en la solicitud.
+     * @function filterTasks
+     * @memberof TaskController
+     * @param {Object} req - Objeto de solicitud HTTP.
+     * @param {Object} res - Objeto de respuesta HTTP.
+     * @returns {void}
+     */
+    filterTasks: (req, res) => {
+        const { completed, overdue } = req.query;
+        let filteredTasks = tasks;
+        if (completed) {
+            filteredTasks = filteredTasks.filter(task => task.status === 'Completado');
+        }
+        if (overdue) {
+            const currentDate = new Date();
+            filteredTasks = filteredTasks.filter(task => new Date(task.dueDate) < currentDate);
+        }
+        res.json(filteredTasks);
     }
 };
