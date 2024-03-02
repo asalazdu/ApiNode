@@ -1,93 +1,101 @@
-const fs = require('fs');
-const path = require('path');
+const { getFirestore, collection, getDocs, addDoc, doc, setDoc, deleteDoc, getDoc } = require('firebase/firestore');
+const firebaseApp = require('../data/tasks');
+const { v4: uuidv4 } = require('uuid');
 
-const tasksFilePath = path.join(__dirname, '..', 'data', 'tasks.js');
+const db = getFirestore();
 
-function readTasksFromFile() {
-    try {
-        const tasksData = fs.readFileSync(tasksFilePath, 'utf8');
-        return JSON.parse(tasksData);
-    } catch (error) {
-        console.error('Error al leer el archivo de tareas:', error);
-        return [];
-    }
+// Función para generar un nuevo ID personalizado
+function generateId() {
+    // Genera un ID aleatorio de 3 dígitos
+    return Math.floor(Math.random() * 1000).toString();
 }
-
-function writeTasksToFile(tasks) {
-    try {
-        fs.writeFileSync(tasksFilePath, JSON.stringify(tasks, null, 2));
-    } catch (error) {
-        console.error('Error al escribir en el archivo de tareas:', error);
-    }
-}
-
-let tasks = readTasksFromFile();
 
 module.exports = {
-    getAllTasks: (req, res) => {
-        if (tasks.length === 0) {
-            return res.status(404).json({ message: 'Aún no tienes tareas creadas' });
+    getAllTasks: async (req, res) => {
+        try {
+            // Obtener todas las tareas desde Firestore
+            const querySnapshot = await getDocs(collection(db, 'tasks'));
+            const tasks = [];
+            querySnapshot.forEach((doc) => {
+                tasks.push({ id: doc.id, ...doc.data() });
+            });
+            if (tasks.length === 0) {
+                return res.status(200).json({ message: 'No hay tareas registradas en este momento' });
+            }
+            res.json(tasks);
+        } catch (error) {
+            console.error('Error al obtener tareas:', error);
+            res.status(500).json({ error: 'Error interno del servidor' });
         }
-        res.json(tasks);
     },
 
-    getTaskById: (req, res) => {
+    getTaskById: async (req, res) => {
         const taskId = req.params.id;
-        const task = tasks.find(task => task.id === taskId);
-
-        if (!task) {
-            return res.status(404).json({ error: 'Tarea no encontrada' });
+        try {
+            // Obtener una tarea por su ID desde Firestore
+            const taskDoc = await getDoc(doc(db, 'tasks', taskId));
+            if (!taskDoc.exists()) {
+                return res.status(404).json({ error: 'Tarea no encontrada' });
+            }
+            res.json({ id: taskDoc.id, ...taskDoc.data() });
+        } catch (error) {
+            console.error('Error al obtener la tarea por ID:', error);
+            res.status(500).json({ error: 'Error interno del servidor' });
         }
-        res.json(task);
     },
 
-    createTask: (req, res) => {
+    createTask: async (req, res) => {
         const { name, description, dueDate, createdDate, status } = req.body;
 
         if (!name || !description || !dueDate || !createdDate || !status) {
             return res.status(400).json({ error: 'Faltan campos requeridos para crear la tarea' });
         }
 
-        const id = tasks.length + 1; // Generar automáticamente el ID
-        const task = { id, name, description, dueDate, createdDate, status };
-        tasks.push(task);
-
-        writeTasksToFile(tasks);
-
-        res.status(201).json(task);
+        try {
+            // Generar un nuevo ID personalizado
+            const taskId = generateId();
+            // Agregar una nueva tarea a Firestore con el ID personalizado
+            await setDoc(doc(db, 'tasks', taskId), {
+                name,
+                description,
+                dueDate,
+                createdDate,
+                status
+            });
+            res.status(201).json({ id: taskId, name, description, dueDate, createdDate, status, message: 'Tarea creada exitosamente' });
+        } catch (error) {
+            console.error('Error al crear la tarea:', error);
+            res.status(500).json({ error: 'Error interno del servidor' });
+        }
     },
 
-    updateTask: (req, res) => {
+    updateTask: async (req, res) => {
         const taskId = req.params.id;
-        const taskToUpdate = tasks.find(task => task.id === taskId);
-
-        if (!taskToUpdate) {
-            return res.status(404).json({ error: 'Tarea no encontrada' });
-        }
-
         const { status } = req.body;
 
         if (!status) {
             return res.status(400).json({ error: 'El campo "status" es requerido' });
         }
 
-        taskToUpdate.status = status;
-        writeTasksToFile(tasks);
-
-        res.json(taskToUpdate);
+        try {
+            // Actualizar el estado de la tarea en Firestore
+            await setDoc(doc(db, 'tasks', taskId), { status }, { merge: true });
+            res.status(200).json({ message: 'Tarea actualizada exitosamente' });
+        } catch (error) {
+            console.error('Error al actualizar la tarea:', error);
+            res.status(500).json({ error: 'Error interno del servidor' });
+        }
     },
 
-    deleteTask: (req, res) => {
+    deleteTask: async (req, res) => {
         const taskId = req.params.id;
-        const initialLength = tasks.length;
-        tasks = tasks.filter(task => task.id !== taskId);
-
-        if (tasks.length === initialLength) {
-            return res.status(404).json({ error: 'La tarea no fue encontrada' });
+        try {
+            // Eliminar la tarea de Firestore por su ID
+            await deleteDoc(doc(db, 'tasks', taskId));
+            res.status(200).json({ message: 'Tarea eliminada exitosamente' });
+        } catch (error) {
+            console.error('Error al eliminar la tarea:', error);
+            res.status(500).json({ error: 'Error interno del servidor' });
         }
-
-        writeTasksToFile(tasks);
-
-        res.sendStatus(204);
     }
 };
